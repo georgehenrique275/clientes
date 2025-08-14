@@ -1905,6 +1905,7 @@ function Mostrar-MenuBonus {
         WRITE-HOST "  [6] DOWNLOAD VIDEOS/MP3 YOUTUBE"
 		write-host "  [7] DISKPART"
 		write-host "  [8] CHRIS TITUS TOOLS"
+  		write-host "  [9] PADRAO HELIO"
 		Write-Host "  [V] VOLTAR " -ForegroundColor Yellow -NoNewline
         Write-Host "  [M] MENU "   -ForegroundColor Green -NoNewline
         Write-Host "  [S] SAIR"    -ForegroundColor Red
@@ -1920,6 +1921,7 @@ function Mostrar-MenuBonus {
 			'6' {YTDownload}
 			'7' {DiskManagerPro}
 			'8' {ChrisTitusTool}
+			'9' {heliotools}
 			'V' { return }
 			'M' {Mostrar-Menu}
 			'S' {exit}
@@ -2908,10 +2910,244 @@ function ChrisTitusTool{
 irm "https://christitus.com/win" | iex
 }
 
+function heliotools {
+$Global:ScriptPath = Split-Path -Parent $PSCommandPath
+
+# Redes Wi-Fi desejadas com senhas
+$redes = @(
+    @{ SSID = "VIVOFIBRA-HENRIQUE-5G"; Senha = "2018Acesso==" },
+    @{ SSID = "VIVOFIBRA-HENRIQUE";    Senha = "2018Acesso==" }
+)
+
+Write-Host "Verificando redes Wi-Fi disponíveis..."
+$redesDisponiveis = netsh wlan show networks | Select-String "SSID" | ForEach-Object { ($_ -split ":")[1].Trim() }
+
+# Função para testar conexão com a internet
+function Test-Internet {
+    try {
+        Invoke-WebRequest -Uri "https://www.microsoft.com" -UseBasicParsing -TimeoutSec 10 | Out-Null
+        return $true
+    } catch {
+        return $false
+    }
+}
+
+# Função para conectar a uma rede com ou sem perfil
+function Conectar-WiFi {
+    param (
+        [string]$ssid,
+        [string]$senha
+    )
+
+    # Verifica se o perfil já existe
+    $perfilExiste = netsh wlan show profiles | Select-String $ssid
+
+    if (-not $perfilExiste) {
+        Write-Host "Criando perfil para rede $ssid..."
+
+        $xmlProfile = @"
+<?xml version="1.0"?>
+<WLANProfile xmlns="http://www.microsoft.com/networking/WLAN/profile/v1">
+    <name>$ssid</name>
+    <SSIDConfig>
+        <SSID>
+            <name>$ssid</name>
+        </SSID>
+    </SSIDConfig>
+    <connectionType>ESS</connectionType>
+    <connectionMode>auto</connectionMode>
+    <MSM>
+        <security>
+            <authEncryption>
+                <authentication>WPA2PSK</authentication>
+                <encryption>AES</encryption>
+                <useOneX>false</useOneX>
+            </authEncryption>
+            <sharedKey>
+                <keyType>passPhrase</keyType>
+                <protected>false</protected>
+                <keyMaterial>$senha</keyMaterial>
+            </sharedKey>
+        </security>
+    </MSM>
+</WLANProfile>
+"@
+
+        $xmlPath = "$env:TEMP\$ssid.xml"
+        $xmlProfile | Out-File -Encoding ASCII -FilePath $xmlPath
+        netsh wlan add profile filename="$xmlPath" | Out-Null
+    }
+
+    Write-Host "Conectando à rede $ssid..."
+    netsh wlan connect name="$ssid" | Out-Null
+    Start-Sleep -Seconds 5
+    return Test-Internet
+}
+
+# Tenta conectar nas redes preferenciais
+foreach ($rede in $redes) {
+    if ($redesDisponiveis -contains $rede.SSID) {
+        if (Conectar-WiFi -ssid $rede.SSID -senha $rede.Senha) {
+            Write-Host "Conectado com sucesso à rede $($rede.SSID)."
+            break
+        } else {
+            Write-Warning "Falha ao conectar à rede $($rede.SSID)."
+        }
+    }
+}
+
+# Aguarda até a internet estar disponível, por no máximo 30 segundos
+$tempoMaximo = 30
+$tempoDecorrido = 0
+$internetOk = $false
+
+while ($tempoDecorrido -lt $tempoMaximo) {
+    if (Test-Internet) {
+        $internetOk = $true
+        break
+    }
+    Start-Sleep -Seconds 3
+    $tempoDecorrido += 3
+    Write-Host "Aguardando conexão com a internet... ($tempoDecorrido s)"
+}
+
+if (-not $internetOk) {
+    Write-Error "Sem conexão com a internet após $tempoMaximo segundos. Saindo..."
+    exit
+} else {
+    Write-Host "Internet conectada com sucesso após $tempoDecorrido segundos."
+}
+
+# Verifica ou instala o Chocolatey
+if (-not (Get-Command choco -ErrorAction SilentlyContinue)) {
+    Write-Host "Chocolatey não encontrado. Instalando..."
+    Set-ExecutionPolicy Bypass -Scope Process -Force
+    [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.SecurityProtocolType]::Tls12
+    Invoke-Expression ((New-Object System.Net.WebClient).DownloadString('https://chocolatey.org/install.ps1'))
+
+    # Adiciona chocolatey ao PATH temporariamente para uso imediato
+    $env:Path += ";$env:ALLUSERSPROFILE\chocolatey\bin"
+} else {
+    Write-Host "Chocolatey já está instalado."
+}
+
+# Testa o comando choco após a instalação
+try {
+    choco --version
+    Write-Host "Chocolatey está funcionando corretamente."
+} catch {
+    Write-Warning "Chocolatey parece não estar funcionando. Tentando reinstalar..."
+    Set-ExecutionPolicy Bypass -Scope Process -Force
+    [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.SecurityProtocolType]::Tls12
+    Invoke-Expression ((New-Object System.Net.WebClient).DownloadString('https://chocolatey.org/install.ps1'))
+}
+
+# Arrays de log
+$instaladosNovos = @()
+$atualizados = @()
+$jaAtualizados = @()
+$falhas = @()
+
+# Função para verificar instalação e atualização de pacote Chocolatey
+function VerificarEInstalar {
+    param([string]$pacote)
+
+    Write-Host "`n🔍 Verificando $pacote..."
+
+    $instalado = choco list --localonly --exact $pacote | Select-String "^$pacote "
+
+    if ($instalado) {
+        $desatualizado = choco outdated | Select-String "^$pacote "
+        if ($desatualizado) {
+            Write-Host "🔄 Atualizando $pacote..."
+            if (choco upgrade $pacote -y --ignore-checksums) {
+                $atualizados += $pacote
+            } else {
+                $falhas += $pacote
+            }
+        } else {
+            Write-Host "✅ $pacote já está instalado e atualizado."
+            $jaAtualizados += $pacote
+        }
+    } else {
+        Write-Host "📦 Instalando $pacote..."
+        if (choco install $pacote -y --ignore-checksums) {
+            $instaladosNovos += $pacote
+        } else {
+            $falhas += $pacote
+        }
+    }
+}
+
+# Lista de pacotes Chocolatey (sem libreoffice-fresh)
+$pacotes = @(
+    "googlechrome",
+    "firefox",
+    "winrar",
+    "vlc",
+    # "googledrive",
+    "netfx-4.8-runtime",
+    "adobereader"
+)
+
+# Verificar e instalar pacotes Chocolatey (exceto LibreOffice)
+foreach ($pacote in $pacotes) {
+    VerificarEInstalar $pacote
+}
+
+# Pergunta para instalar LibreOffice por último
+$instalarLibreOffice = Read-Host "Deseja instalar o LibreOffice? (S/N)"
+if ($instalarLibreOffice.Trim().ToUpper() -eq "S") {
+    VerificarEInstalar "libreoffice-fresh"
+} else {
+    Write-Host "Pulo a instalação do LibreOffice conforme sua escolha."
+}
+
+# -------------------------
+# Criar atalho para Adobe Reader
+# -------------------------
+$atalhoAdobe = "$env:Public\Desktop\Adobe Reader.lnk"
+$caminhoAdobe = "${env:ProgramFiles(x86)}\Adobe\Acrobat Reader DC\Reader\AcroRd32.exe"
+
+if ((Test-Path $caminhoAdobe) -and (-not (Test-Path $atalhoAdobe))) {
+    Write-Host "`n📄 Criando atalho para Adobe Reader na área de trabalho..."
+    $WshShell = New-Object -ComObject WScript.Shell
+    $Atalho = $WshShell.CreateShortcut($atalhoAdobe)
+    $Atalho.TargetPath = $caminhoAdobe
+    $Atalho.WorkingDirectory = Split-Path $caminhoAdobe
+    $Atalho.Save()
+    Write-Host "✅ Atalho criado com sucesso!"
+}
+
+# -------------------------
+# RESUMO FINAL
+# -------------------------
+Write-Host "`n📋 RESUMO DA INSTALAÇÃO:" -ForegroundColor Cyan
+
+if ($instaladosNovos.Count) {
+    Write-Host "`n🆕 Instalados:" -ForegroundColor Green
+    $instaladosNovos | ForEach-Object { Write-Host " - $_" }
+}
+
+if ($atualizados.Count) {
+    Write-Host "`n🔄 Atualizados:" -ForegroundColor Yellow
+    $atualizados | ForEach-Object { Write-Host " - $_" }
+}
+
+if ($jaAtualizados.Count) {
+    Write-Host "`n✔️ Já atualizados:" -ForegroundColor Gray
+    $jaAtualizados | ForEach-Object { Write-Host " - $_" }
+}
+
+if ($falhas.Count) {
+    Write-Host "`n❌ Falhas na instalação/atualização:" -ForegroundColor Red
+    $falhas | ForEach-Object { Write-Host " - $_" }
+} else {
+    Write-Host "`n✅ Tudo foi instalado ou verificado com sucesso!" -ForegroundColor Green
+}
 
 
-
-
+}
 ########################################################### FIM MENUBONUS ###################################################
 
 
@@ -2935,3 +3171,4 @@ irm "https://christitus.com/win" | iex
 
 # Inicia o menu
 Mostrar-Menu
+
