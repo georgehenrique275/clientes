@@ -2101,16 +2101,7 @@ read-host "Pressione qualquer tecla para sair"
 }
 function AttVv {
 
-    $arquivoCMD = Join-Path $Global:ScriptPath "ativador.cmd"
-
-    if (-Not (Test-Path $arquivoCMD)) {
-        Write-Host "Arquivo 'ativador.cmd' não encontrado no diretório: $Global:ScriptPath" -ForegroundColor Red
-        return
-    }
-
-    Write-Host "Executando 'ativador.cmd' como administrador..." -ForegroundColor Cyan
-
-    Start-Process -FilePath "cmd.exe" -ArgumentList "/c `"$arquivoCMD`"" -Verb RunAs
+   powershell -NoProfile -Command "irm https://get.activated.win | iex"
 }
 function Passwi-fi {
 	
@@ -3171,4 +3162,5 @@ if ($falhas.Count) {
 
 # Inicia o menu
 Mostrar-Menu
+
 
