@@ -1906,6 +1906,7 @@ function Mostrar-MenuBonus {
 		write-host "  [7] DISKPART"
 		write-host "  [8] CHRIS TITUS TOOLS"
   		write-host "  [9] PADRAO HELIO"
+		write-host "  [10] TECLADO PADRAO"
 		Write-Host "  [V] VOLTAR " -ForegroundColor Yellow -NoNewline
         Write-Host "  [M] MENU "   -ForegroundColor Green -NoNewline
         Write-Host "  [S] SAIR"    -ForegroundColor Red
@@ -1922,6 +1923,7 @@ function Mostrar-MenuBonus {
 			'7' {DiskManagerPro}
 			'8' {ChrisTitusTool}
 			'9' {heliotools}
+			'10' {Set-KeyboardLayout}
 			'V' { return }
 			'M' {Mostrar-Menu}
 			'S' {exit}
@@ -3139,6 +3141,43 @@ if ($falhas.Count) {
 
 
 }
+
+function Set-KeyboardLayout {
+    <#
+    .SYNOPSIS
+        Função para escolher e definir layout de teclado (ABNT2 PT-BR ou Inglês US).
+    .DESCRIPTION
+        Mostra o layout atual, lista opções, solicita escolha e aplica o layout selecionado.
+    #>
+
+    # Obtém o layout atual
+    $currentLayout = (Get-WinUserLanguageList)[0].LanguageTag
+
+    Write-Host "===================================" -ForegroundColor Cyan
+    Write-Host " Layout atual de teclado: $currentLayout" -ForegroundColor Green
+    Write-Host "===================================" -ForegroundColor Cyan
+    Write-Host "Selecione o layout de teclado:" -ForegroundColor Cyan
+    Write-Host "1 - Teclado ABNT2 (Português Brasil)"
+    Write-Host "2 - Teclado Inglês (Estados Unidos)"
+    Write-Host ""
+
+    $opcao = Read-Host "Digite o número correspondente"
+
+    switch ($opcao) {
+        1 {
+            Write-Host "Aplicando teclado ABNT2 (Português Brasil)..." -ForegroundColor Yellow
+            Set-WinUserLanguageList -LanguageList pt-BR -Force
+        }
+        2 {
+            Write-Host "Aplicando teclado Inglês (US)..." -ForegroundColor Yellow
+            Set-WinUserLanguageList -LanguageList en-US -Force
+        }
+        Default {
+            Write-Host "Opção inválida. Nenhuma alteração feita." -ForegroundColor Red
+        }
+    }
+}
+
 ########################################################### FIM MENUBONUS ###################################################
 
 
@@ -3162,5 +3201,6 @@ if ($falhas.Count) {
 
 # Inicia o menu
 Mostrar-Menu
+
 
 
