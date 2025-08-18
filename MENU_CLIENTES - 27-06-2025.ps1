@@ -3078,6 +3078,7 @@ $pacotes = @(
     "firefox",
     "winrar",
     "vlc",
+	"anydesk",
     # "googledrive",
     "netfx-4.8-runtime",
     "adobereader"
@@ -3201,6 +3202,7 @@ function Set-KeyboardLayout {
 
 # Inicia o menu
 Mostrar-Menu
+
 
 
 
